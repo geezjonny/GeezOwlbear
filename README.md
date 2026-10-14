@@ -1,11 +1,25 @@
-# GeezOwlbear v1.4 — compact HP labels
+# GeezOwlbear v1.4.1 — formatted source fix
 
-Upload all five files to the root of your existing GitHub Pages `GeezOwlbear` repository and wait for Pages to redeploy. Refresh Owlbear with the GM account in the scene.
+This is v1.4 repackaged as **readable, separate HTML, CSS, and JavaScript files**. It keeps the existing Firebase character linking and compact live HP labels (12px). No relinking is needed.
 
-Changes:
-- HP displays as `38/39` with **12px screen-space** text and 2px padding, rather than a giant label proportional to the map's DPI.
-- Labels appear below a standard one-cell token rather than overlapping its portrait.
-- **Existing** v1.3 HP labels are restyled and repositioned automatically on the next Firebase callback / scene startup; no relinking needed.
-- Firebase synchronization and token menu still work as before.
+## Upload to GitHub
 
-Note: labels remain a constant on-screen size when zooming (that's Owlbear's native label behavior). Very small zoom levels can still make them seem comparatively large. This version has not been tested inside your live Owlbear scene.
+Upload **all seven files** from this folder to the root of your `GeezOwlbear` repository:
+
+- `manifest.json`
+- `icon.svg`
+- `background.html`
+- `background.js`
+- `index.html`
+- `app.js`
+- `styles.css`
+
+Use **Add file → Upload files** and commit to `main`. GitHub Pages needs to publish the new `.js` and `.css` files along with the HTML.
+
+Your manifest URL remains:
+
+`https://geezjonny.github.io/GeezOwlbear/manifest.json`
+
+Open your room as GM and refresh after GitHub Pages finishes deploying. Existing token links should be preserved.
+
+This package has been syntax- and structure-checked locally, but is not verified in a live Owlbear room.

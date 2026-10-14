@@ -1,81 +1,52 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeezSheets HP</title>
-<style>
-:root{color-scheme:dark;font:14px system-ui,sans-serif}*{box-sizing:border-box}body{margin:0;background:#0f172a;color:#e2e8f0;padding:16px}h2{margin:0 0 4px;font-size:18px}#tokenName{color:#34d399}p{color:#94a3b8;font-size:12px;line-height:1.4}label{display:block;color:#94a3b8;margin:14px 0 5px;font-size:12px}select,button,a.button{width:100%;border:1px solid #475569;background:#1e293b;color:#e2e8f0;padding:10px;border-radius:8px;font:inherit}button,a.button{background:#059669;border:0;cursor:pointer;font-weight:650;text-align:center;text-decoration:none;display:block;margin-top:10px}a.button{background:#334155}button:disabled{opacity:.5;cursor:default}#stats{padding:13px;background:#1e293b;border:1px solid #334155;border-radius:10px;margin-top:14px}#hp{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;margin:6px 0}#barWrap{height:10px;background:#334155;border-radius:10px;overflow:hidden}#bar{height:100%;width:0;background:#22c55e;transition:width .25s}#characterName{font-weight:700}#status{min-height:30px}#stats[hidden],#open[hidden]{display:none}
-</style></head><body>
-<h2>GeezSheets <span style="color:#34d399">Live HP</span></h2>
-<div id="tokenName">Connecting to Owlbear…</div>
-<label for="character">Linked character</label>
-<select id="character" disabled><option value="">Loading characters…</option></select>
-<button id="link" disabled>Link to this token</button>
-<section id="stats" hidden><div id="characterName"></div><div id="hp">— / — HP</div><div id="barWrap"><div id="bar"></div></div></section>
-<a id="open" class="button" target="_blank" rel="noopener noreferrer" hidden>Open full character sheet ↗</a>
-<p id="status" role="status">Connecting…</p>
-<script type="module">
-import OBR from 'https://esm.sh/@owlbear-rodeo/sdk@2';
-import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
-import {getDatabase,ref,get,onValue} from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
-// Public Firebase web-app configuration (not an admin credential).
-const config={apiKey:'AIzaSyCJrkcYjFjyyx5UNA9FUaCIlCvxxOYabis',authDomain:'geezsheets.firebaseapp.com',databaseURL:'https://geezsheets-default-rtdb.firebaseio.com',projectId:'geezsheets',storageBucket:'geezsheets.firebasestorage.app',messagingSenderId:'57811286242',appId:'1:57811286242:web:cd9cac596acdb355a2c6bb'};
-const db=getDatabase(initializeApp(config));
-const KEY='io.github.geezjonny.geezowlbear/characterId';
-const id=new URLSearchParams(location.search).get('token');
-const $=name=>document.getElementById(name);
-let characters=new Map(),linkedId='',unsubscribe=null,ready=false;
-const status=s=>$('status').textContent=s;
-function displayCharacter(charId){
-  if(unsubscribe){unsubscribe();unsubscribe=null;}
-  const c=characters.get(charId);
-  $('stats').hidden=!charId;
-  $('open').hidden=!charId;
-  if(!charId)return;
-  $('characterName').textContent=c?.name||charId;
-  const u=new URL('https://geezjonny.github.io/GeezSheets/sheet.html');u.searchParams.set('char',charId);$('open').href=u.href;
-  $('hp').textContent='Loading HP…';$('bar').style.width='0%';
-  unsubscribe=onValue(ref(db,`characters/pcs/${charId}/combat`),snap=>{
-    const combat=snap.val();
-    if(!combat){$('hp').textContent='No combat data';return;}
-    const current=Number(combat.hp_current??0),max=Number(combat.hp_max??0);
-    $('hp').textContent=`${current} / ${max} HP`;
-    const pct=max>0?Math.max(0,Math.min(100,current/max*100)):0;
-    $('bar').style.width=pct+'%';
-    $('bar').style.background=pct<=25?'#ef4444':pct<=50?'#eab308':'#22c55e';
-    status('Live HP connected to GeezSheets.');
-  },err=>status('Firebase HP read failed: '+err.message));
-}
-OBR.onReady(async()=>{
-  try{
-    if(!id)throw Error('No token selected');
-    const items=await OBR.scene.items.getItems([id]);
-    if(items.length!==1)throw Error('Token was not found');
-    $('tokenName').textContent=items[0].name||'Character token';
-    linkedId=items[0].metadata?.[KEY]||'';
-    const snap=await get(ref(db,'characters/pcs'));
-    if(!snap.exists())throw Error('No characters available in Firebase');
-    const all=Object.entries(snap.val()).map(([charId,c])=>({id:charId,name:c?.name||c?.identity?.name||c?.basic?.name||'',type:c?.type,record_type:c?.record_type,campaign:c?.campaign})).filter(c=>c.name&&c.campaign!=='__oracle__'&&c.type!=='npc'&&c.record_type!=='npc');
-    all.sort((a,b)=>a.name.localeCompare(b.name));
-    characters=new Map(all.map(c=>[c.id,c]));
-    const sel=$('character');sel.replaceChildren();
-    const blank=new Option('Choose a character…','');sel.add(blank);
-    for(const c of all)sel.add(new Option(c.name+(c.campaign?' — '+c.campaign:''),c.id));
-    if(linkedId&&!characters.has(linkedId))sel.add(new Option('Previously linked: '+linkedId,linkedId));
-    sel.value=linkedId||'';sel.disabled=false;$('link').disabled=!sel.value;ready=true;
-    if(linkedId){displayCharacter(linkedId);status('Linked. HP updates live.');}
-    else status('Choose a character and press Link.');
-  }catch(e){status('Error: '+e.message);$('tokenName').textContent='Cannot load token';}
-});
-$('character').onchange=()=>{$('link').disabled=!$('character').value;status($('character').value===linkedId?'This character is already linked.':'Press Link to save this character to the token.');};
-$('link').onclick=async()=>{
-  if(!ready)return;
-  const chosen=$('character').value;if(!chosen)return;
-  $('link').disabled=true;
-  try{
-    await OBR.scene.items.updateItems([id],items=>{for(const item of items)item.metadata[KEY]=chosen;});
-    linkedId=chosen;displayCharacter(chosen);status('Linked! Live HP is displayed above.');
-  }catch(e){status('Link failed: '+e.message);}
-  finally{$('link').disabled=false;}
-};
-window.addEventListener('pagehide',()=>unsubscribe?.());
-</script>
-</body>
+<html lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1" name="viewport"/>
+  <title>
+   GeezSheets HP
+  </title>
+  <link href="./styles.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <h2>
+   GeezSheets
+   <span style="color:#34d399">
+    Live HP
+   </span>
+  </h2>
+  <div id="tokenName">
+   Connecting to Owlbear&hellip;
+  </div>
+  <label for="character">
+   Linked character
+  </label>
+  <select disabled="" id="character">
+   <option value="">
+    Loading characters&hellip;
+   </option>
+  </select>
+  <button disabled="" id="link">
+   Link to this token
+  </button>
+  <section hidden="" id="stats">
+   <div id="characterName">
+   </div>
+   <div id="hp">
+    &mdash; / &mdash; HP
+   </div>
+   <div id="barWrap">
+    <div id="bar">
+    </div>
+   </div>
+  </section>
+  <a class="button" hidden="" id="open" rel="noopener noreferrer" target="_blank">
+   Open full character sheet &nearrow;
+  </a>
+  <p id="status" role="status">
+   Connecting&hellip;
+  </p>
+  <script src="./app.js" type="module">
+  </script>
+ </body>
 </html>

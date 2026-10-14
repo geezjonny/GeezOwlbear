@@ -1,119 +1,13 @@
-<!doctype html><html><head><meta charset="utf-8"><title>GeezSheets HP sync</title></head><body>
-<script type="module">
-import OBR, { buildLabel } from 'https://esm.sh/@owlbear-rodeo/sdk@2';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
-import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
-const BASE='https://geezjonny.github.io/GeezOwlbear/';
-const ID='io.github.geezjonny.geezowlbear';
-const LINK=ID+'/characterId';
-const MARK=ID+'/hpLabelFor';
-const LABEL_VERSION=ID+'/hpLabelStyleVersion';
-const STYLE_VERSION=2;
-const FONT_SIZE=12; // Screen-space pixels, never scale by grid DPI
-const config={apiKey:'AIzaSyCJrkcYjFjyyx5UNA9FUaCIlCvxxOYabis',authDomain:'geezsheets.firebaseapp.com',databaseURL:'https://geezsheets-default-rtdb.firebaseio.com',projectId:'geezsheets',storageBucket:'geezsheets.firebasestorage.app',messagingSenderId:'57811286242',appId:'1:57811286242:web:cd9cac596acdb355a2c6bb'};
-const db=getDatabase(initializeApp(config));
-let unsubscribeItems=null;
-let watchers=new Map(); // tokenId -> { characterId, unsubscribe }
-let latestItems=[];
-let processing=Promise.resolve();
-let sceneGeneration=0;
-let gm=false;
-function logError(error){console.error('[GeezSheets HP]',error);}
-function enqueue(task){processing=processing.then(task,task).catch(logError);}
-function stopWatchers(){for(const w of watchers.values())w.unsubscribe();watchers.clear();}
-function stopScene(){sceneGeneration++;unsubscribeItems?.();unsubscribeItems=null;stopWatchers();latestItems=[];processing=Promise.resolve();}
-function hpText(combat){if(!combat)return 'HP: —';const current=Number(combat.hp_current),max=Number(combat.hp_max);if(!Number.isFinite(current)||!Number.isFinite(max))return 'HP: —';return `${current}/${max}`;}
-async function setLabel(tokenId,text,generation){
- if(generation!==sceneGeneration||!gm)return;
- const items=await OBR.scene.items.getItems();
- if(generation!==sceneGeneration)return;
- const token=items.find(item=>item.id===tokenId&&item.layer==='CHARACTER'&&item.metadata?.[LINK]);
- if(!token)return;
- const dpi=await OBR.scene.grid.getDpi();
- const existing=items.filter(item=>item.metadata?.[MARK]===tokenId);
- if(existing.length){
-   const label=existing[0];
-   const migrate=label.metadata?.[LABEL_VERSION]!==STYLE_VERSION;
-   if(label.text?.plainText!==text || migrate){
-      await OBR.scene.items.updateItems([label.id],draft=>{
-        for(const i of draft){
-          i.text.plainText=text;
-          if(migrate){
-            i.text.style.fontSize=FONT_SIZE;
-            i.text.style.padding=2;
-            i.text.style.fontWeight=600;
-            i.style.backgroundOpacity=0.82;
-            i.style.cornerRadius=3;
-            // Migrate oversized labels already on the map.
-            // Position is attached to the token, so it follows the token afterwards.
-            i.position={x:token.position.x,y:token.position.y+dpi*1.12};
-            i.metadata[LABEL_VERSION]=STYLE_VERSION;
-          }
-        }
-      });
-   }
-   if(existing.length>1)await OBR.scene.items.deleteItems(existing.slice(1).map(i=>i.id));
- } else {
-   // Compact screen-space label; position remains attached when the token moves.
-   const label=buildLabel().name('GeezSheets HP')
-     .plainText(text).fontSize(FONT_SIZE)
-     .fontWeight(600).textAlign('CENTER')
-     .fillColor('#ffffff').backgroundColor('#152238')
-     .backgroundOpacity(0.82).cornerRadius(3).padding(2)
-     .layer('ATTACHMENT').disableHit(true)
-     .position({x:token.position.x,y:token.position.y+dpi*1.12})
-     .attachedTo(token.id).metadata({[MARK]:token.id,[LABEL_VERSION]:STYLE_VERSION})
-     .build();
-   if(generation===sceneGeneration)await OBR.scene.items.addItems([label]);
- }
-}
-async function reconcile(items){
- if(!gm)return;
- const generation=sceneGeneration;
- latestItems=items;
- const linked=new Map(items.filter(i=>i.layer==='CHARACTER'&&typeof i.metadata?.[LINK]==='string'&&i.metadata[LINK]).map(i=>[i.id,i.metadata[LINK]]));
- for(const [tokenId,entry] of watchers){if(linked.get(tokenId)!==entry.characterId){entry.unsubscribe();watchers.delete(tokenId);}}
- const orphanIds=items.filter(i=>i.metadata?.[MARK]&&!linked.has(i.metadata[MARK])).map(i=>i.id);
- if(orphanIds.length)await OBR.scene.items.deleteItems(orphanIds);
- for(const [tokenId,characterId] of linked){
-   if(watchers.has(tokenId))continue;
-   // Subscribe once per token. Changes in Firebase update the attached label.
-   const entry={characterId,unsubscribe:()=>{}};
-   watchers.set(tokenId,entry);
-   const unsub=onValue(ref(db,`characters/pcs/${characterId}/combat`),snap=>{
-     const text=hpText(snap.val());
-     enqueue(()=>setLabel(tokenId,text,generation));
-   },error=>{
-     logError(error);
-     enqueue(()=>setLabel(tokenId,'HP unavailable',generation));
-   });
-   entry.unsubscribe=unsub;
- }
-}
-async function startScene(){
- stopScene();
- if(!gm||!await OBR.scene.isReady())return;
- const generation=sceneGeneration;
- unsubscribeItems=OBR.scene.items.onChange(items=>{enqueue(()=>reconcile(items));});
- const items=await OBR.scene.items.getItems();
- if(generation===sceneGeneration)enqueue(()=>reconcile(items));
-}
-OBR.onReady(async()=>{
- await OBR.contextMenu.create({
-   id:ID+'/character-menu',
-   icons:[{icon:BASE+'icon.svg',label:'GeezSheets HP',filter:{every:[{key:'layer',value:'CHARACTER'}]}}],
-   every:[{key:'layer',value:'CHARACTER'}],
-   onClick:async(context,elementId)=>{
-     if(context.items.length!==1)return;
-     const url=new URL(BASE+'index.html');url.searchParams.set('token',context.items[0].id);
-     await OBR.popover.open({id:ID+'/link-popover',url:url.href,width:360,height:390,anchorElementId:elementId});
-   }
- });
- // One writer (the GM) manages shared scene labels. Players still see them.
- gm=(await OBR.player.getRole())==='GM';
- if(gm){
-   await startScene();
-   OBR.scene.onReadyChange(ready=>{if(ready)startScene().catch(logError);else stopScene();});
- }
-});
-</script></body></html>
+<!doctype html>
+<html>
+ <head>
+  <meta charset="utf-8"/>
+  <title>
+   GeezSheets HP sync
+  </title>
+ </head>
+ <body>
+  <script src="./background.js" type="module">
+  </script>
+ </body>
+</html>
