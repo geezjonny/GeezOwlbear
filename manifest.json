@@ -1,7 +1,7 @@
 {
   "name": "GeezSheets Live HP",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "manifest_version": 1,
-  "description": "Link Owlbear character tokens to GeezSheets characters and view live Firebase HP.",
+  "description": "Link Owlbear tokens to GeezSheets and display live Firebase HP labels on the map.",
   "background_url": "https://geezjonny.github.io/GeezOwlbear/background.html"
 }
