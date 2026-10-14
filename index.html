@@ -1,4 +1,5 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeezSheets HP</title>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeezSheets HP</title>
 <style>
 :root{color-scheme:dark;font:14px system-ui,sans-serif}*{box-sizing:border-box}body{margin:0;background:#0f172a;color:#e2e8f0;padding:16px}h2{margin:0 0 4px;font-size:18px}#tokenName{color:#34d399}p{color:#94a3b8;font-size:12px;line-height:1.4}label{display:block;color:#94a3b8;margin:14px 0 5px;font-size:12px}select,button,a.button{width:100%;border:1px solid #475569;background:#1e293b;color:#e2e8f0;padding:10px;border-radius:8px;font:inherit}button,a.button{background:#059669;border:0;cursor:pointer;font-weight:650;text-align:center;text-decoration:none;display:block;margin-top:10px}a.button{background:#334155}button:disabled{opacity:.5;cursor:default}#stats{padding:13px;background:#1e293b;border:1px solid #334155;border-radius:10px;margin-top:14px}#hp{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;margin:6px 0}#barWrap{height:10px;background:#334155;border-radius:10px;overflow:hidden}#bar{height:100%;width:0;background:#22c55e;transition:width .25s}#characterName{font-weight:700}#status{min-height:30px}#stats[hidden],#open[hidden]{display:none}
 </style></head><body>
@@ -75,4 +76,6 @@ $('link').onclick=async()=>{
   finally{$('link').disabled=false;}
 };
 window.addEventListener('pagehide',()=>unsubscribe?.());
-</script></body></html>
+</script>
+</body>
+</html>
