@@ -1,13 +1,7 @@
 {
   "name": "GeezSheets Token Link",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "manifest_version": 1,
-  "description": "Link Owlbear Rodeo character tokens to GeezSheets.",
-  "action": {
-    "title": "GeezSheets",
-    "icon": "https://geezjonny.github.io/GeezOwlbear/icon.svg",
-    "popover": "https://geezjonny.github.io/GeezOwlbear/index.html",
-    "width": 360,
-    "height": 420
-  }
+  "description": "Link a character token to GeezSheets directly from its context menu.",
+  "background_url": "https://geezjonny.github.io/GeezOwlbear/background.html"
 }

@@ -1,111 +1,32 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GeezSheets • Owlbear</title>
-<style>
-  :root { color-scheme: dark; font: 15px system-ui, sans-serif; }
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 18px; background: #111d2b; color: #f2f5fa; }
-  h1 { font-size: 20px; margin: 0 0 8px; }
-  p { color: #b7c3d0; line-height: 1.45; }
-  .panel { padding: 14px; border: 1px solid #34475c; border-radius: 12px; margin-top: 16px; background: #19293b; }
-  label { display: block; margin-top: 14px; margin-bottom: 5px; font-size: 13px; }
-  input, button, a.button { width: 100%; font: inherit; border-radius: 8px; padding: 10px; }
-  input { color: white; background: #0e1926; border: 1px solid #53657a; }
-  button, a.button { display: block; text-align: center; margin-top: 10px; border: 0; background: #198c79; color: white; font-weight: 650; cursor: pointer; text-decoration: none; }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-  .secondary { background: #31475e !important; }
-  .muted { color: #93a5b8; font-size: 12px; }
-  #status { min-height: 20px; }
-</style>
-</head>
-<body>
-<h1>GeezSheets</h1>
-<p id="status">Connecting to Owlbear Rodeo…</p>
-<section class="panel">
-  <strong id="token">No token selected</strong>
-  <p class="muted" id="help">Select one character token on the Owlbear map, then press Refresh.</p>
-  <button id="refresh" class="secondary">Refresh selection</button>
-  <label for="characterId">GeezSheets character ID</label>
-  <input id="characterId" placeholder="Paste the character ID" autocomplete="off">
-  <button id="save" disabled>Link character to token</button>
-  <a id="open" class="button secondary" href="#" target="_blank" rel="noopener noreferrer" hidden>Open character sheet ↗</a>
-</section>
-<p class="muted">This version stores the character link on the Owlbear token. GeezSheets handles its own Firebase updates when opened.</p>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeezSheets</title><style>
+:root {color-scheme:dark;font:14px system-ui,sans-serif}*{box-sizing:border-box}body{margin:0;background:#142233;color:#f5f7fa;padding:16px}h2{margin:0 0 6px;font-size:18px}p{color:#b9c6d4;line-height:1.4}label{display:block;margin:12px 0 5px}input{width:100%;background:#0c1623;border:1px solid #53657a;color:white;border-radius:7px;padding:10px;font:inherit}button,a.button{width:100%;display:block;border:0;background:#198c79;color:white;padding:10px;margin-top:10px;border-radius:7px;text-decoration:none;text-align:center;font:inherit;font-weight:600;cursor:pointer}.secondary{background:#344e67}.muted{font-size:12px}#open[hidden]{display:none}
+</style></head><body>
+<h2>GeezSheets</h2><strong id="tokenName">Loading token…</strong>
+<p id="message" class="muted">Connecting…</p>
+<label for="characterId">Character ID</label><input id="characterId" placeholder="Enter character ID once" autocomplete="off"/>
+<button id="save">Link to this token</button>
+<a class="button secondary" id="open" href="#" target="_blank" rel="noopener noreferrer" hidden>Open character sheet ↗</a>
 <script type="module">
-  import OBR from 'https://esm.sh/@owlbear-rodeo/sdk@2';
-
-  const METADATA_KEY = 'io.github.geezjonny.geezowlbear/characterId';
-  const SHEET_URL = 'https://geezjonny.github.io/GeezSheets/sheet.html';
-  const $ = id => document.getElementById(id);
-  let selected = null;
-
-  function status(message) { $('status').textContent = message; }
-  function updateLink(characterId) {
-    const id = String(characterId || '').trim();
-    $('characterId').value = id;
-    $('open').hidden = !id;
-    if (id) {
-      const url = new URL(SHEET_URL);
-      url.searchParams.set('char', id);
-      // Full page instead of embed: opens in a normal browser tab.
-      $('open').href = url.href;
-    } else {
-      $('open').removeAttribute('href');
-    }
-  }
-
-  async function refresh() {
-    selected = null;
-    $('save').disabled = true;
-    $('token').textContent = 'No token selected';
-    updateLink('');
-    try {
-      if (!(await OBR.scene.isReady())) {
-        status('Open a scene in Owlbear Rodeo first.');
-        return;
-      }
-      const ids = await OBR.player.getSelection();
-      if (!ids || ids.length !== 1) {
-        status('Select exactly one token, then press Refresh.');
-        return;
-      }
-      const items = await OBR.scene.items.getItems(ids);
-      if (!items.length || items[0].layer !== 'CHARACTER') {
-        status('Select an item on the CHARACTER layer.');
-        return;
-      }
-      selected = items[0];
-      $('token').textContent = selected.name || 'Unnamed character token';
-      updateLink(selected.metadata?.[METADATA_KEY]);
-      $('save').disabled = false;
-      status('Connected. Enter or change the linked character ID.');
-    } catch (error) {
-      status('Owlbear error: ' + error.message);
-    }
-  }
-
-  $('refresh').addEventListener('click', refresh);
-  $('save').addEventListener('click', async () => {
-    const id = $('characterId').value.trim();
-    if (!selected || !id) { status('Select a token and enter a character ID.'); return; }
-    try {
-      const tokenId = selected.id;
-      await OBR.scene.items.updateItems([tokenId], items => {
-        for (const item of items) item.metadata[METADATA_KEY] = id;
-      });
-      status('Saved! This token is linked to GeezSheets.');
-      updateLink(id);
-    } catch (error) {
-      status('Could not save token metadata: ' + error.message);
-    }
-  });
-
-  OBR.onReady(async () => {
-    await refresh();
-  });
-</script>
-</body>
-</html>
+import OBR from 'https://esm.sh/@owlbear-rodeo/sdk@2';
+const KEY='io.github.geezjonny.geezowlbear/characterId';
+const id=new URLSearchParams(location.search).get('token');
+const el=(x)=>document.getElementById(x);
+const message=(s)=>el('message').textContent=s;
+const sheet=(value)=>{const char=String(value||'').trim();el('characterId').value=char;el('open').hidden=!char;if(char){const u=new URL('https://geezjonny.github.io/GeezSheets/sheet.html');u.searchParams.set('char',char);el('open').href=u.href;}};
+OBR.onReady(async()=>{
+  try {
+    if(!id) throw new Error('No token was supplied');
+    const items=await OBR.scene.items.getItems([id]);
+    if(items.length!==1) throw new Error('Token no longer exists');
+    el('tokenName').textContent=items[0].name||'Character token';
+    sheet(items[0].metadata?.[KEY]);
+    message(items[0].metadata?.[KEY]?'Already linked. Open its sheet or change the ID.':'Link this token once; the association is saved.');
+  } catch(e) { message(e.message); el('save').disabled=true; }
+});
+el('save').onclick=async()=>{
+ const value=el('characterId').value.trim();if(!value){message('Enter a character ID.');return;}
+ el('save').disabled=true;
+ try{await OBR.scene.items.updateItems([id],items=>{for(const item of items)item.metadata[KEY]=value;});sheet(value);message('Linked! Use this same token menu to open its sheet.');}
+ catch(e){message('Failed to link: '+e.message);}finally{el('save').disabled=false;}
+};
+</script></body></html>
