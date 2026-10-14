@@ -1,7 +1,7 @@
 {
-  "name": "GeezSheets Token Link",
-  "version": "1.1.0",
+  "name": "GeezSheets Live HP",
+  "version": "1.2.0",
   "manifest_version": 1,
-  "description": "Link a character token to GeezSheets directly from its context menu.",
+  "description": "Link Owlbear character tokens to GeezSheets characters and view live Firebase HP.",
   "background_url": "https://geezjonny.github.io/GeezOwlbear/background.html"
 }
