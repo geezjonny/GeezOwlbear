@@ -1,25 +1,20 @@
-# GeezOwlbear v1.4.1 — formatted source fix
+# GeezOwlbear v1.5 — native token HP caption
 
-This is v1.4 repackaged as **readable, separate HTML, CSS, and JavaScript files**. It keeps the existing Firebase character linking and compact live HP labels (12px). No relinking is needed.
+**Fix:** Stop drawing separate, screen-sized HP labels. Instead, append HP to the **existing native Owlbear token name caption** (`Thorin · 32/45 HP`). This uses Owlbear's own label font and zoom behavior automatically.
 
-## Upload to GitHub
+## Install
 
-Upload **all seven files** from this folder to the root of your `GeezOwlbear` repository:
+Upload all **seven source files** to the root of `geezjonny/GeezOwlbear` on GitHub, replacing any existing copies. Commit to `main`, wait for Pages to deploy, then refresh the Owlbear room as GM.
 
-- `manifest.json`
-- `icon.svg`
-- `background.html`
-- `background.js`
-- `index.html`
-- `app.js`
-- `styles.css`
+## Behavior
 
-Use **Add file → Upload files** and commit to `main`. GitHub Pages needs to publish the new `.js` and `.css` files along with the HTML.
+- Updates every linked IMAGE token's native name caption when Firebase HP changes.
+- Preserves its original name, font-size, style, and other formatting.
+- Removes GeezOwlbear's old standalone HP labels automatically.
+- Restores the original caption if a token is unlinked.
+- Existing character links continue working; Firebase structure is unchanged.
+- Non-IMAGE scene objects do not get native captions.
 
-Your manifest URL remains:
+**Note:** Because HP shares the token's native name caption, it appears on the *same line* as the name, not on a separate line. This is intentional: both will now have identical sizing behavior. If other extensions edit that caption at the same time, they could conflict.
 
-`https://geezjonny.github.io/GeezOwlbear/manifest.json`
-
-Open your room as GM and refresh after GitHub Pages finishes deploying. Existing token links should be preserved.
-
-This package has been syntax- and structure-checked locally, but is not verified in a live Owlbear room.
+**Testing:** Files were checked locally for syntax and archive integrity. Owlbear live-room behavior still needs testing.

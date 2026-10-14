@@ -1,13 +1,14 @@
-import OBR, { buildLabel } from 'https://esm.sh/@owlbear-rodeo/sdk@2';
+import OBR from 'https://esm.sh/@owlbear-rodeo/sdk@2';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
 import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
 const BASE = 'https://geezjonny.github.io/GeezOwlbear/';
 const ID = 'io.github.geezjonny.geezowlbear';
 const LINK = ID+'/characterId';
-const MARK = ID+'/hpLabelFor';
-const LABEL_VERSION = ID+'/hpLabelStyleVersion';
-const STYLE_VERSION = 2;
-const FONT_SIZE = 12; // Screen-space pixels, never scale by grid DPI
+const OLD_HP_LABEL_MARK = `${ID}/hpLabelFor`;
+const ORIGINAL_CAPTION_KEY = `${ID}/originalCaption`;
+const ORIGINAL_CAPTION_TYPE_KEY = `${ID}/originalCaptionType`;
+// HP is displayed in the token's OWN caption rather than a separate LABEL item.
+// Owlbear controls its font size and zoom behavior exactly like the token name.
 const config = {apiKey:'AIzaSyCJrkcYjFjyyx5UNA9FUaCIlCvxxOYabis',
   authDomain:'geezsheets.firebaseapp.com',
   databaseURL:'https://geezsheets-default-rtdb.firebaseio.com',
@@ -19,82 +20,136 @@ const config = {apiKey:'AIzaSyCJrkcYjFjyyx5UNA9FUaCIlCvxxOYabis',
 const db = getDatabase(initializeApp(config));
 let unsubscribeItems = null;
 let watchers = new Map(); // tokenId -> { characterId, unsubscribe }
-let latestItems = [];
 let processing = Promise.resolve();
 let sceneGeneration = 0;
 let gm = false;
-function logError(error){console.error('[GeezSheets HP]',error);}
-function enqueue(task){processing=processing.then(task,task).catch(logError);}
-function stopWatchers(){for(const w of watchers.values())w.unsubscribe();watchers.clear();}
-function stopScene(){sceneGeneration++;unsubscribeItems?.();unsubscribeItems=null;stopWatchers();latestItems=[];processing=Promise.resolve();}
-function hpText(combat){if(!combat)return 'HP: —';const current=Number(combat.hp_current),max=Number(combat.hp_max);if(!Number.isFinite(current)||!Number.isFinite(max))return 'HP: —';return `${current}/${max}`;}
-async function setLabel(tokenId,text,generation){
- if(generation!==sceneGeneration||!gm)return;
- const items=await OBR.scene.items.getItems();
- if(generation!==sceneGeneration)return;
- const token=items.find(item=>item.id===tokenId&&item.layer==='CHARACTER'&&item.metadata?.[LINK]);
- if(!token)return;
- const dpi=await OBR.scene.grid.getDpi();
- const existing=items.filter(item=>item.metadata?.[MARK]===tokenId);
- if(existing.length){
-   const label=existing[0];
-   const migrate=label.metadata?.[LABEL_VERSION]!==STYLE_VERSION;
-   if(label.text?.plainText!==text || migrate){
-      await OBR.scene.items.updateItems([label.id],draft=>{
-        for(const i of draft){
-          i.text.plainText=text;
-          if(migrate){
-            i.text.style.fontSize=FONT_SIZE;
-            i.text.style.padding=2;
-            i.text.style.fontWeight=600;
-            i.style.backgroundOpacity=0.82;
-            i.style.cornerRadius=3;
-            // Migrate oversized labels already on the map.
-            // Position is attached to the token, so it follows the token afterwards.
-            i.position={x:token.position.x,y:token.position.y+dpi*1.12};
-            i.metadata[LABEL_VERSION]=STYLE_VERSION;
-          }
-        }
-      });
-   }
-   if(existing.length>1)await OBR.scene.items.deleteItems(existing.slice(1).map(i=>i.id));
- } else {
-   // Compact screen-space label; position remains attached when the token moves.
-   const label=buildLabel().name('GeezSheets HP')
-     .plainText(text).fontSize(FONT_SIZE)
-     .fontWeight(600).textAlign('CENTER')
-     .fillColor('#ffffff').backgroundColor('#152238')
-     .backgroundOpacity(0.82).cornerRadius(3).padding(2)
-     .layer('ATTACHMENT').disableHit(true)
-     .position({x:token.position.x,y:token.position.y+dpi*1.12})
-     .attachedTo(token.id).metadata({[MARK]:token.id,[LABEL_VERSION]:STYLE_VERSION})
-     .build();
-   if(generation===sceneGeneration)await OBR.scene.items.addItems([label]);
- }
+
+function logError(error) {
+  console.error('[GeezSheets HP]', error);
 }
-async function reconcile(items){
- if(!gm)return;
- const generation=sceneGeneration;
- latestItems=items;
- const linked=new Map(items.filter(i=>i.layer==='CHARACTER'&&typeof i.metadata?.[LINK]==='string'&&i.metadata[LINK]).map(i=>[i.id,i.metadata[LINK]]));
- for(const [tokenId,entry] of watchers){if(linked.get(tokenId)!==entry.characterId){entry.unsubscribe();watchers.delete(tokenId);}}
- const orphanIds=items.filter(i=>i.metadata?.[MARK]&&!linked.has(i.metadata[MARK])).map(i=>i.id);
- if(orphanIds.length)await OBR.scene.items.deleteItems(orphanIds);
- for(const [tokenId,characterId] of linked){
-   if(watchers.has(tokenId))continue;
-   // Subscribe once per token. Changes in Firebase update the attached label.
-   const entry={characterId,unsubscribe:()=>{}};
-   watchers.set(tokenId,entry);
-   const unsub=onValue(ref(db,`characters/pcs/${characterId}/combat`),snap=>{
-     const text=hpText(snap.val());
-     enqueue(()=>setLabel(tokenId,text,generation));
-   },error=>{
-     logError(error);
-     enqueue(()=>setLabel(tokenId,'HP unavailable',generation));
-   });
-   entry.unsubscribe=unsub;
- }
+
+function enqueue(task) {
+  processing = processing.then(task, task).catch(logError);
 }
+
+function stopWatchers() {
+  for (const watcher of watchers.values()) watcher.unsubscribe();
+  watchers.clear();
+}
+
+function stopScene() {
+  sceneGeneration++;
+  unsubscribeItems?.();
+  unsubscribeItems = null;
+  stopWatchers();
+  processing = Promise.resolve();
+}
+
+function hpText(combat) {
+  if (!combat) return '—';
+  const current = Number(combat.hp_current);
+  const max = Number(combat.hp_max);
+  if (!Number.isFinite(current) || !Number.isFinite(max)) return '—';
+  return `${current}/${max}`;
+}
+
+async function clearOldLabels(items) {
+  const ids = items
+    .filter(item => item.metadata?.[OLD_HP_LABEL_MARK])
+    .map(item => item.id);
+  if (ids.length) await OBR.scene.items.deleteItems(ids);
+}
+
+async function setCaption(tokenId, hp, generation) {
+  if (generation !== sceneGeneration || !gm) return;
+  const items = await OBR.scene.items.getItems([tokenId]);
+  if (generation !== sceneGeneration) return;
+  const token = items[0];
+  if (!token || token.type !== 'IMAGE' || !token.metadata?.[LINK]) return;
+
+  // Remember the original native caption once, before any HP is appended.
+  const hasOriginal = Object.prototype.hasOwnProperty.call(
+    token.metadata, ORIGINAL_CAPTION_KEY
+  );
+  const original = hasOriginal
+    ? token.metadata[ORIGINAL_CAPTION_KEY]
+    : (token.text?.plainText || token.name || 'Character');
+  const nextCaption = `${original} · ${hp} HP`;
+  if (token.text?.plainText === nextCaption && hasOriginal) return;
+
+  await OBR.scene.items.updateItems([tokenId], drafts => {
+    for (const draft of drafts) {
+      if (draft.type !== 'IMAGE' || !draft.metadata?.[LINK]) continue;
+      if (!Object.prototype.hasOwnProperty.call(draft.metadata, ORIGINAL_CAPTION_KEY)) {
+        draft.metadata[ORIGINAL_CAPTION_KEY] = original;
+        draft.metadata[ORIGINAL_CAPTION_TYPE_KEY] = draft.textItemType;
+      }
+      draft.text.plainText = nextCaption;
+      draft.textItemType = 'LABEL';
+      // Deliberately leave text.style unchanged: native sizing is the goal.
+    }
+  });
+}
+
+async function restoreUnlinkedCaption(token) {
+  if (token.type !== 'IMAGE') return;
+  if (!Object.prototype.hasOwnProperty.call(token.metadata || {}, ORIGINAL_CAPTION_KEY)) return;
+  await OBR.scene.items.updateItems([token.id], drafts => {
+    for (const draft of drafts) {
+      draft.text.plainText = draft.metadata[ORIGINAL_CAPTION_KEY];
+      if (draft.metadata[ORIGINAL_CAPTION_TYPE_KEY]) {
+        draft.textItemType = draft.metadata[ORIGINAL_CAPTION_TYPE_KEY];
+      }
+      delete draft.metadata[ORIGINAL_CAPTION_KEY];
+      delete draft.metadata[ORIGINAL_CAPTION_TYPE_KEY];
+    }
+  });
+}
+
+async function reconcile(items) {
+  if (!gm) return;
+  const generation = sceneGeneration;
+
+  // Remove the huge HP objects from older GeezOwlbear versions.
+  await clearOldLabels(items);
+
+  const linked = new Map(items
+    .filter(item => item.layer === 'CHARACTER' &&
+      item.type === 'IMAGE' &&
+      typeof item.metadata?.[LINK] === 'string' && item.metadata[LINK])
+    .map(item => [item.id, item.metadata[LINK]]));
+
+  for (const [tokenId, entry] of watchers) {
+    if (linked.get(tokenId) !== entry.characterId) {
+      entry.unsubscribe();
+      watchers.delete(tokenId);
+    }
+  }
+
+  for (const item of items) {
+    if (item.metadata?.[ORIGINAL_CAPTION_KEY] !== undefined && !linked.has(item.id)) {
+      await restoreUnlinkedCaption(item);
+    }
+  }
+
+  for (const [tokenId, characterId] of linked) {
+    if (watchers.has(tokenId)) continue;
+    const entry = { characterId, unsubscribe: () => {} };
+    watchers.set(tokenId, entry);
+    entry.unsubscribe = onValue(
+      ref(db, `characters/pcs/${characterId}/combat`),
+      snapshot => {
+        const hp = hpText(snapshot.val());
+        enqueue(() => setCaption(tokenId, hp, generation));
+      },
+      error => {
+        logError(error);
+        enqueue(() => setCaption(tokenId, 'unavailable', generation));
+      }
+    );
+  }
+}
+
 async function startScene(){
  stopScene();
  if(!gm||!await OBR.scene.isReady())return;
