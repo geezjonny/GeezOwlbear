@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeezSheets • Owlbear</title>
+<style>
+  :root { color-scheme: dark; font: 15px system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 18px; background: #111d2b; color: #f2f5fa; }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  p { color: #b7c3d0; line-height: 1.45; }
+  .panel { padding: 14px; border: 1px solid #34475c; border-radius: 12px; margin-top: 16px; background: #19293b; }
+  label { display: block; margin-top: 14px; margin-bottom: 5px; font-size: 13px; }
+  input, button, a.button { width: 100%; font: inherit; border-radius: 8px; padding: 10px; }
+  input { color: white; background: #0e1926; border: 1px solid #53657a; }
+  button, a.button { display: block; text-align: center; margin-top: 10px; border: 0; background: #198c79; color: white; font-weight: 650; cursor: pointer; text-decoration: none; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .secondary { background: #31475e !important; }
+  .muted { color: #93a5b8; font-size: 12px; }
+  #status { min-height: 20px; }
+</style>
+</head>
+<body>
+<h1>GeezSheets</h1>
+<p id="status">Connecting to Owlbear Rodeo…</p>
+<section class="panel">
+  <strong id="token">No token selected</strong>
+  <p class="muted" id="help">Select one character token on the Owlbear map, then press Refresh.</p>
+  <button id="refresh" class="secondary">Refresh selection</button>
+  <label for="characterId">GeezSheets character ID</label>
+  <input id="characterId" placeholder="Paste the character ID" autocomplete="off">
+  <button id="save" disabled>Link character to token</button>
+  <a id="open" class="button secondary" href="#" target="_blank" rel="noopener noreferrer" hidden>Open character sheet ↗</a>
+</section>
+<p class="muted">This version stores the character link on the Owlbear token. GeezSheets handles its own Firebase updates when opened.</p>
+<script type="module">
+  import OBR from 'https://esm.sh/@owlbear-rodeo/sdk@2';
+
+  const METADATA_KEY = 'io.github.geezjonny.geezowlbear/characterId';
+  const SHEET_URL = 'https://geezjonny.github.io/GeezSheets/sheet.html';
+  const $ = id => document.getElementById(id);
+  let selected = null;
+
+  function status(message) { $('status').textContent = message; }
+  function updateLink(characterId) {
+    const id = String(characterId || '').trim();
+    $('characterId').value = id;
+    $('open').hidden = !id;
+    if (id) {
+      const url = new URL(SHEET_URL);
+      url.searchParams.set('char', id);
+      // Full page instead of embed: opens in a normal browser tab.
+      $('open').href = url.href;
+    } else {
+      $('open').removeAttribute('href');
+    }
+  }
+
+  async function refresh() {
+    selected = null;
+    $('save').disabled = true;
+    $('token').textContent = 'No token selected';
+    updateLink('');
+    try {
+      if (!(await OBR.scene.isReady())) {
+        status('Open a scene in Owlbear Rodeo first.');
+        return;
+      }
+      const ids = await OBR.player.getSelection();
+      if (!ids || ids.length !== 1) {
+        status('Select exactly one token, then press Refresh.');
+        return;
+      }
+      const items = await OBR.scene.items.getItems(ids);
+      if (!items.length || items[0].layer !== 'CHARACTER') {
+        status('Select an item on the CHARACTER layer.');
+        return;
+      }
+      selected = items[0];
+      $('token').textContent = selected.name || 'Unnamed character token';
+      updateLink(selected.metadata?.[METADATA_KEY]);
+      $('save').disabled = false;
+      status('Connected. Enter or change the linked character ID.');
+    } catch (error) {
+      status('Owlbear error: ' + error.message);
+    }
+  }
+
+  $('refresh').addEventListener('click', refresh);
+  $('save').addEventListener('click', async () => {
+    const id = $('characterId').value.trim();
+    if (!selected || !id) { status('Select a token and enter a character ID.'); return; }
+    try {
+      const tokenId = selected.id;
+      await OBR.scene.items.updateItems([tokenId], items => {
+        for (const item of items) item.metadata[METADATA_KEY] = id;
+      });
+      status('Saved! This token is linked to GeezSheets.');
+      updateLink(id);
+    } catch (error) {
+      status('Could not save token metadata: ' + error.message);
+    }
+  });
+
+  OBR.onReady(async () => {
+    await refresh();
+  });
+</script>
+</body>
+</html>
