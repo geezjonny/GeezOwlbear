@@ -14,6 +14,7 @@ Deploy `manifest.json`, `background.html`, `background.js`, `index.html`, `app.j
 - Restores the original caption if a token is unlinked.
 - To unlink, press the separate **Unlink this token** button below Link. A connected GM client restores the caption.
 - Caption edits made while linked are retained on subsequent HP updates and unlinking.
+- Players and GMs can select a linked token, open **GeezSheets HP**, and press **Open sheet in Owlbear** to view its sheet in a 760 × 640 window. **Open in new tab** remains available. The linked character determines which sheet opens; player ownership is not inferred.
 - Existing character links continue working; Firebase structure is unchanged.
 - Non-IMAGE scene objects do not get native captions.
 
@@ -29,5 +30,6 @@ Deploy `manifest.json`, `background.html`, `background.js`, `index.html`, `app.j
 - Switch scenes while HP updates arrive; confirm no captions or links leak between scenes.
 - Delete a linked token, reload the room, and test missing combat data or denied Firebase reads.
 - Confirm caption size and visibility at different zoom levels, and migration from old standalone HP labels.
+- As a player, open a linked token's sheet inside Owlbear, check that GeezSheets loads and works when embedded, then close the window. Also check the new-tab option and smaller screens.
 
 A connected GM client is required for shared caption synchronization. Test multiple GM clients if your room uses them. Firebase access rules and hosted deployment have not been validated by the local tests.

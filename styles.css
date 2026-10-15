@@ -71,5 +71,5 @@ button:disabled {
   font-weight:700}
 #status {
   min-height:30px}
-#stats[hidden],#open[hidden] {
+#stats[hidden],#open[hidden],#openInOwlbear[hidden] {
   display:none}

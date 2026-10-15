@@ -26,6 +26,7 @@ function displayCharacter(charId){
   const c=characters.get(charId);
   $('stats').hidden=!charId;
   $('open').hidden=!charId;
+  $('openInOwlbear').hidden=!charId;
   if(!charId)return;
   $('characterName').textContent=c?.name||charId;
   const u=new URL('https://geezjonny.github.io/GeezSheets/sheet.html');u.searchParams.set('char',charId);$('open').href=u.href;
@@ -77,4 +78,17 @@ async function saveLink(chosen){
 }
 $('link').onclick=()=>{const chosen=$('character').value;if(chosen)return saveLink(chosen);};
 $('unlink').onclick=()=>{if(linkedId)return saveLink('');};
+$('openInOwlbear').onclick=async()=>{
+  if(!linkedId)return;
+  $('openInOwlbear').disabled=true;
+  try{
+    await OBR.modal.open({
+      id:'io.github.geezjonny.geezowlbear/sheet',
+      url:$('open').href,
+      width:760,
+      height:640
+    });
+  }catch(e){status('Could not open sheet in Owlbear: '+e.message+'. Try Open in new tab.');}
+  finally{$('openInOwlbear').disabled=false;}
+};
 window.addEventListener('pagehide',()=>unsubscribe?.());
