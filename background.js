@@ -7,6 +7,7 @@ const LINK = ID+'/characterId';
 const OLD_HP_LABEL_MARK = `${ID}/hpLabelFor`;
 const ORIGINAL_CAPTION_KEY = `${ID}/originalCaption`;
 const ORIGINAL_CAPTION_TYPE_KEY = `${ID}/originalCaptionType`;
+const LAST_CAPTION_KEY = `${ID}/lastCaption`;
 // HP is displayed in the token's OWN caption rather than a separate LABEL item.
 // Owlbear controls its font size and zoom behavior exactly like the token name.
 const config = {apiKey:'AIzaSyCJrkcYjFjyyx5UNA9FUaCIlCvxxOYabis',
@@ -42,7 +43,6 @@ function stopScene() {
   unsubscribeItems?.();
   unsubscribeItems = null;
   stopWatchers();
-  processing = Promise.resolve();
 }
 
 function hpText(combat) {
@@ -60,58 +60,74 @@ async function clearOldLabels(items) {
   if (ids.length) await OBR.scene.items.deleteItems(ids);
 }
 
-async function setCaption(tokenId, hp, generation) {
+function captionBase(token) {
+  const saved = token.metadata[ORIGINAL_CAPTION_KEY];
+  const current = token.text?.plainText ?? '';
+  if (saved === undefined) return current || token.name || 'Character';
+  if (current === token.metadata[LAST_CAPTION_KEY]) return saved;
+  // Recognize captions written by v1.5, which did not save lastCaption.
+  if (!token.metadata[LAST_CAPTION_KEY] && current.startsWith(`${saved} · `) && current.endsWith(' HP')) return saved;
+  const previous = token.metadata[LAST_CAPTION_KEY];
+  const suffix = typeof previous === 'string' ? previous.slice(saved.length) : '';
+  return suffix && current.endsWith(suffix) ? current.slice(0, -suffix.length) : current;
+}
+
+async function setCaption(tokenId, characterId, hp, generation) {
   if (generation !== sceneGeneration || !gm) return;
   const items = await OBR.scene.items.getItems([tokenId]);
   if (generation !== sceneGeneration) return;
   const token = items[0];
-  if (!token || token.type !== 'IMAGE' || !token.metadata?.[LINK]) return;
+  if (!token || token.type !== 'IMAGE' || token.layer !== 'CHARACTER' || token.metadata?.[LINK] !== characterId) return;
 
   // Remember the original native caption once, before any HP is appended.
   const hasOriginal = Object.prototype.hasOwnProperty.call(
     token.metadata, ORIGINAL_CAPTION_KEY
   );
-  const original = hasOriginal
-    ? token.metadata[ORIGINAL_CAPTION_KEY]
-    : (token.text?.plainText || token.name || 'Character');
+  const original = captionBase(token);
   const nextCaption = `${original} · ${hp} HP`;
   if (token.text?.plainText === nextCaption && hasOriginal) return;
 
   await OBR.scene.items.updateItems([tokenId], drafts => {
     for (const draft of drafts) {
-      if (draft.type !== 'IMAGE' || !draft.metadata?.[LINK]) continue;
+      if (generation !== sceneGeneration || !gm || draft.type !== 'IMAGE' || draft.layer !== 'CHARACTER' || draft.metadata?.[LINK] !== characterId) continue;
       if (!Object.prototype.hasOwnProperty.call(draft.metadata, ORIGINAL_CAPTION_KEY)) {
         draft.metadata[ORIGINAL_CAPTION_KEY] = original;
         draft.metadata[ORIGINAL_CAPTION_TYPE_KEY] = draft.textItemType;
       }
-      draft.text.plainText = nextCaption;
+      draft.metadata[ORIGINAL_CAPTION_KEY] = captionBase(draft);
+      draft.metadata[LAST_CAPTION_KEY] = `${draft.metadata[ORIGINAL_CAPTION_KEY]} · ${hp} HP`;
+      draft.text.plainText = draft.metadata[LAST_CAPTION_KEY];
       draft.textItemType = 'LABEL';
       // Deliberately leave text.style unchanged: native sizing is the goal.
     }
   });
 }
 
-async function restoreUnlinkedCaption(token) {
+async function restoreUnlinkedCaption(token, generation) {
+  if (generation !== sceneGeneration || !gm) return;
   if (token.type !== 'IMAGE') return;
   if (!Object.prototype.hasOwnProperty.call(token.metadata || {}, ORIGINAL_CAPTION_KEY)) return;
   await OBR.scene.items.updateItems([token.id], drafts => {
     for (const draft of drafts) {
-      draft.text.plainText = draft.metadata[ORIGINAL_CAPTION_KEY];
+      if (generation !== sceneGeneration || !gm || (draft.layer === 'CHARACTER' && draft.metadata?.[LINK])) continue;
+      if (draft.metadata[ORIGINAL_CAPTION_KEY] === undefined) continue;
+      draft.text.plainText = captionBase(draft);
       if (draft.metadata[ORIGINAL_CAPTION_TYPE_KEY]) {
         draft.textItemType = draft.metadata[ORIGINAL_CAPTION_TYPE_KEY];
       }
       delete draft.metadata[ORIGINAL_CAPTION_KEY];
       delete draft.metadata[ORIGINAL_CAPTION_TYPE_KEY];
+      delete draft.metadata[LAST_CAPTION_KEY];
     }
   });
 }
 
-async function reconcile(items) {
-  if (!gm) return;
-  const generation = sceneGeneration;
+async function reconcile(items, generation) {
+  if (!gm || generation !== sceneGeneration) return;
 
   // Remove the huge HP objects from older GeezOwlbear versions.
   await clearOldLabels(items);
+  if (!gm || generation !== sceneGeneration) return;
 
   const linked = new Map(items
     .filter(item => item.layer === 'CHARACTER' &&
@@ -128,7 +144,8 @@ async function reconcile(items) {
 
   for (const item of items) {
     if (item.metadata?.[ORIGINAL_CAPTION_KEY] !== undefined && !linked.has(item.id)) {
-      await restoreUnlinkedCaption(item);
+      await restoreUnlinkedCaption(item, generation);
+      if (generation !== sceneGeneration) return;
     }
   }
 
@@ -140,11 +157,11 @@ async function reconcile(items) {
       ref(db, `characters/pcs/${characterId}/combat`),
       snapshot => {
         const hp = hpText(snapshot.val());
-        enqueue(() => setCaption(tokenId, hp, generation));
+        enqueue(() => setCaption(tokenId, characterId, hp, generation));
       },
       error => {
         logError(error);
-        enqueue(() => setCaption(tokenId, 'unavailable', generation));
+        enqueue(() => setCaption(tokenId, characterId, 'unavailable', generation));
       }
     );
   }
@@ -152,11 +169,15 @@ async function reconcile(items) {
 
 async function startScene(){
  stopScene();
- if(!gm||!await OBR.scene.isReady())return;
  const generation=sceneGeneration;
- unsubscribeItems=OBR.scene.items.onChange(items=>{enqueue(()=>reconcile(items));});
+ if(!gm||!await OBR.scene.isReady()||generation!==sceneGeneration)return;
+ unsubscribeItems=OBR.scene.items.onChange(()=>{enqueue(async()=>{
+   if(generation!==sceneGeneration)return;
+   const items=await OBR.scene.items.getItems();
+   await reconcile(items,generation);
+ });});
  const items=await OBR.scene.items.getItems();
- if(generation===sceneGeneration)enqueue(()=>reconcile(items));
+ if(generation===sceneGeneration)enqueue(()=>reconcile(items,generation));
 }
 OBR.onReady(async()=>{
  await OBR.contextMenu.create({
@@ -169,10 +190,10 @@ OBR.onReady(async()=>{
      await OBR.popover.open({id:ID+'/link-popover',url:url.href,width:360,height:390,anchorElementId:elementId});
    }
  });
- // One writer (the GM) manages shared scene labels. Players still see them.
+ // GM clients manage shared scene captions. Players still see them.
  gm=(await OBR.player.getRole())==='GM';
  if(gm){
-   await startScene();
    OBR.scene.onReadyChange(ready=>{if(ready)startScene().catch(logError);else stopScene();});
+   await startScene();
  }
 });

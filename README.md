@@ -4,7 +4,7 @@
 
 ## Install
 
-Upload all **seven source files** to the root of `geezjonny/GeezOwlbear` on GitHub, replacing any existing copies. Commit to `main`, wait for Pages to deploy, then refresh the Owlbear room as GM.
+Deploy `manifest.json`, `background.html`, `background.js`, `index.html`, `app.js`, `styles.css`, and `icon.svg` to GitHub Pages. Add the hosted manifest URL to Owlbear, then refresh the room as GM.
 
 ## Behavior
 
@@ -12,9 +12,22 @@ Upload all **seven source files** to the root of `geezjonny/GeezOwlbear` on GitH
 - Preserves its original name, font-size, style, and other formatting.
 - Removes GeezOwlbear's old standalone HP labels automatically.
 - Restores the original caption if a token is unlinked.
+- To unlink, select **No linked character** and press **Unlink this token**. A connected GM client restores the caption.
+- Caption edits made while linked are retained on subsequent HP updates and unlinking.
 - Existing character links continue working; Firebase structure is unchanged.
 - Non-IMAGE scene objects do not get native captions.
 
 **Note:** Because HP shares the token's native name caption, it appears on the *same line* as the name, not on a separate line. This is intentional: both will now have identical sizing behavior. If other extensions edit that caption at the same time, they could conflict.
 
-**Testing:** Files were checked locally for syntax and archive integrity. Owlbear live-room behavior still needs testing.
+**Local checks:** Run `node --test tests/background.test.cjs`, `node --check app.js`, and `node --check background.js`. Regression tests cover caption edits and restoration, stale scene work, relinking guards, and v1.5 caption migration using mocked APIs.
+
+**Live-room release checks (still required):**
+
+- As GM, link a character token and change HP in GeezSheets; confirm the caption updates for both GM and player.
+- Relink to another character; confirm changes to the former character no longer affect the token.
+- Edit the caption while linked, update HP, then unlink; confirm the edited caption and its formatting survive.
+- Switch scenes while HP updates arrive; confirm no captions or links leak between scenes.
+- Delete a linked token, reload the room, and test missing combat data or denied Firebase reads.
+- Confirm caption size and visibility at different zoom levels, and migration from old standalone HP labels.
+
+A connected GM client is required for shared caption synchronization. Test multiple GM clients if your room uses them. Firebase access rules and hosted deployment have not been validated by the local tests.

@@ -16,6 +16,11 @@ const id = new URLSearchParams(location.search).get('token');
 const $ = name=>document.getElementById(name);
 let characters = new Map(),linkedId='',unsubscribe=null,ready=false;
 const status = s=>$('status').textContent=s;
+function updateLinkButton(){
+  const chosen=$('character').value;
+  $('link').disabled=!ready||chosen===linkedId;
+  $('link').textContent=chosen?'Link to this token':'Unlink this token';
+}
 function displayCharacter(charId){
   if(unsubscribe){unsubscribe();unsubscribe=null;}
   const c=characters.get(charId);
@@ -27,7 +32,7 @@ function displayCharacter(charId){
   $('hp').textContent='Loading HP…';$('bar').style.width='0%';
   unsubscribe=onValue(ref(db,`characters/pcs/${charId}/combat`),snap=>{
     const combat=snap.val();
-    if(!combat){$('hp').textContent='No combat data';return;}
+    if(!combat){$('hp').textContent='No combat data';$('bar').style.width='0%';return;}
     const current=Number(combat.hp_current??0),max=Number(combat.hp_max??0);
     $('hp').textContent=`${current} / ${max} HP`;
     const pct=max>0?Math.max(0,Math.min(100,current/max*100)):0;
@@ -49,23 +54,24 @@ OBR.onReady(async()=>{
     all.sort((a,b)=>a.name.localeCompare(b.name));
     characters=new Map(all.map(c=>[c.id,c]));
     const sel=$('character');sel.replaceChildren();
-    const blank=new Option('Choose a character…','');sel.add(blank);
+    const blank=new Option('No linked character','');sel.add(blank);
     for(const c of all)sel.add(new Option(c.name+(c.campaign?' — '+c.campaign:''),c.id));
     if(linkedId&&!characters.has(linkedId))sel.add(new Option('Previously linked: '+linkedId,linkedId));
-    sel.value=linkedId||'';sel.disabled=false;$('link').disabled=!sel.value;ready=true;
+    sel.value=linkedId||'';sel.disabled=false;ready=true;updateLinkButton();
     if(linkedId){displayCharacter(linkedId);status('Linked. HP updates live.');}
     else status('Choose a character and press Link.');
   }catch(e){status('Error: '+e.message);$('tokenName').textContent='Cannot load token';}
 });
-$('character').onchange=()=>{$('link').disabled=!$('character').value;status($('character').value===linkedId?'This character is already linked.':'Press Link to save this character to the token.');};
+$('character').onchange=()=>{updateLinkButton();status($('character').value===linkedId?'No changes to save.':$('character').value?'Press Link to save this character to the token.':'Press Unlink to restore the token caption.');};
 $('link').onclick=async()=>{
   if(!ready)return;
-  const chosen=$('character').value;if(!chosen)return;
+  const chosen=$('character').value;
   $('link').disabled=true;
+  $('character').disabled=true;
   try{
-    await OBR.scene.items.updateItems([id],items=>{for(const item of items)item.metadata[KEY]=chosen;});
-    linkedId=chosen;displayCharacter(chosen);status('Linked! Live HP is displayed above.');
+    await OBR.scene.items.updateItems([id],items=>{for(const item of items){if(chosen)item.metadata[KEY]=chosen;else delete item.metadata[KEY];}});
+    linkedId=chosen;displayCharacter(chosen);status(chosen?'Linked! Live HP is displayed above.':'Unlinked. The GM connection restores the token caption.');
   }catch(e){status('Link failed: '+e.message);}
-  finally{$('link').disabled=false;}
+  finally{$('character').disabled=false;updateLinkButton();}
 };
 window.addEventListener('pagehide',()=>unsubscribe?.());
