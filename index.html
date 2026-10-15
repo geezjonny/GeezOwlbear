@@ -42,6 +42,19 @@
     <div id="bar">
     </div>
    </div>
+   <div id="combatControls">
+    <label for="hpAmount">HP amount</label>
+    <input id="hpAmount" type="number" min="1" step="1" value="1" disabled />
+    <div class="hpActions">
+     <button id="damage" disabled>− Damage</button>
+     <button id="heal" disabled>+ Heal</button>
+    </div>
+    <details>
+     <summary>Conditions</summary>
+     <p id="activeConditions">No active conditions</p>
+     <div id="conditions"></div>
+    </details>
+   </div>
   </section>
   <button hidden="" id="openInOwlbear">
    Open sheet in Owlbear

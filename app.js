@@ -1,6 +1,7 @@
 import OBR from 'https://esm.sh/@owlbear-rodeo/sdk@2';
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
-import {getDatabase,ref,get,onValue} from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
+import {getDatabase,ref,get,onValue,runTransaction} from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
+import {CONDITIONS,adjustHp,setCondition} from './combat.mjs';
 // Public Firebase web-app configuration (not an admin credential).
 const config = {apiKey:'AIzaSyCJrkcYjFjyyx5UNA9FUaCIlCvxxOYabis',
   authDomain:'geezsheets.firebaseapp.com',
@@ -15,6 +16,36 @@ const KEY = 'io.github.geezjonny.geezowlbear/characterId';
 const id = new URLSearchParams(location.search).get('token');
 const $ = name=>document.getElementById(name);
 let characters = new Map(),linkedId='',unsubscribe=null,ready=false;
+let combatReady=false, savingCombat=false;
+function updateCombatControls(){
+  for(const control of $('combatControls').querySelectorAll('button,input'))control.disabled=!combatReady||savingCombat;
+}
+for(const condition of CONDITIONS){
+  const label=document.createElement('label');
+  const input=document.createElement('input');input.type='checkbox';input.value=condition;
+  input.onchange=()=>{const enabled=input.checked;return saveCombat(combat=>setCondition(combat,condition,enabled));};
+  label.append(input,document.createTextNode(condition));$('conditions').append(label);
+}
+async function saveCombat(transform){
+  if(!linkedId||!combatReady||savingCombat)return;
+  const characterId=linkedId;
+  savingCombat=true;updateCombatControls();$('link').disabled=true;$('unlink').disabled=true;$('character').disabled=true;
+  try{
+    const items=await OBR.scene.items.getItems([id]);
+    if(items[0]?.metadata?.[KEY]!==characterId)throw Error('Token link changed. Reopen the token controls.');
+    const result=await runTransaction(ref(db,`characters/pcs/${characterId}/combat`),transform,{applyLocally:false});
+    if(!result.committed)throw Error('Combat data is missing or invalid.');
+    status('Saved to GeezSheets.');
+  }catch(e){displayCharacter(linkedId);status('Save failed: '+e.message);}
+  finally{savingCombat=false;updateCombatControls();$('character').disabled=false;updateLinkButton();}
+}
+function changeHp(sign){
+  const amount=Number($('hpAmount').value);
+  if(!Number.isSafeInteger(amount)||amount<=0){status('Enter a positive whole HP amount.');return;}
+  return saveCombat(combat=>adjustHp(combat,sign*amount));
+}
+$('damage').onclick=()=>changeHp(-1);
+$('heal').onclick=()=>changeHp(1);
 const status = s=>$('status').textContent=s;
 function updateLinkButton(){
   const chosen=$('character').value;
@@ -22,6 +53,7 @@ function updateLinkButton(){
   $('unlink').disabled=!ready||!linkedId;
 }
 function displayCharacter(charId){
+  combatReady=false;updateCombatControls();
   if(unsubscribe){unsubscribe();unsubscribe=null;}
   const c=characters.get(charId);
   $('stats').hidden=!charId;
@@ -32,7 +64,12 @@ function displayCharacter(charId){
   const u=new URL('https://geezjonny.github.io/GeezSheets/sheet.html');u.searchParams.set('char',charId);$('open').href=u.href;
   $('hp').textContent='Loading HP…';$('bar').style.width='0%';
   unsubscribe=onValue(ref(db,`characters/pcs/${charId}/combat`),snap=>{
+    if(charId!==linkedId)return;
     const combat=snap.val();
+    combatReady=!!combat;updateCombatControls();
+    const conditions=Array.isArray(combat?.conditions)?combat.conditions:[];
+    for(const input of $('conditions').querySelectorAll('input'))input.checked=conditions.some(value=>typeof value==='string'&&value.toLowerCase()===input.value.toLowerCase());
+    $('activeConditions').textContent=conditions.length?'Active: '+conditions.join(', '):'No active conditions';
     if(!combat){$('hp').textContent='No combat data';$('bar').style.width='0%';return;}
     const current=Number(combat.hp_current??0),max=Number(combat.hp_max??0);
     $('hp').textContent=`${current} / ${max} HP`;
@@ -40,7 +77,7 @@ function displayCharacter(charId){
     $('bar').style.width=pct+'%';
     $('bar').style.background=pct<=25?'#ef4444':pct<=50?'#eab308':'#22c55e';
     status('Live HP connected to GeezSheets.');
-  },err=>status('Firebase HP read failed: '+err.message));
+  },err=>{combatReady=false;updateCombatControls();status('Firebase HP read failed: '+err.message);});
 }
 OBR.onReady(async()=>{
   try{
@@ -65,7 +102,7 @@ OBR.onReady(async()=>{
 });
 $('character').onchange=()=>{updateLinkButton();status($('character').value===linkedId?'No changes to save.':$('character').value?'Press Link to save this character to the token.':'Press Unlink to restore the token caption.');};
 async function saveLink(chosen){
-  if(!ready)return;
+  if(!ready||savingCombat)return;
   ready=false;
   $('link').disabled=true;
   $('unlink').disabled=true;

@@ -187,7 +187,7 @@ OBR.onReady(async()=>{
    onClick:async(context,elementId)=>{
      if(context.items.length!==1)return;
      const url=new URL(BASE+'index.html');url.searchParams.set('token',context.items[0].id);
-     await OBR.popover.open({id:ID+'/link-popover',url:url.href,width:360,height:390,anchorElementId:elementId});
+     await OBR.popover.open({id:ID+'/link-popover',url:url.href,width:360,height:620,anchorElementId:elementId});
    }
  });
  // GM clients manage shared scene captions. Players still see them.

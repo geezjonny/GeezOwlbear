@@ -71,5 +71,12 @@ button:disabled {
   font-weight:700}
 #status {
   min-height:30px}
+.hpActions {display:flex;gap:8px}
+#damage {background:#b91c1c}
+#hpAmount {width:100%;padding:8px;background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:6px;font:inherit}
+details {margin-top:14px}
+summary {cursor:pointer}
+#conditions {display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#conditions label {display:flex;align-items:center;gap:6px;margin:0;color:#e2e8f0}
 #stats[hidden],#open[hidden],#openInOwlbear[hidden] {
   display:none}
