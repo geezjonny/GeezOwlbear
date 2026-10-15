@@ -18,8 +18,8 @@ let characters = new Map(),linkedId='',unsubscribe=null,ready=false;
 const status = s=>$('status').textContent=s;
 function updateLinkButton(){
   const chosen=$('character').value;
-  $('link').disabled=!ready||chosen===linkedId;
-  $('link').textContent=chosen?'Link to this token':'Unlink this token';
+  $('link').disabled=!ready||!chosen||chosen===linkedId;
+  $('unlink').disabled=!ready||!linkedId;
 }
 function displayCharacter(charId){
   if(unsubscribe){unsubscribe();unsubscribe=null;}
@@ -63,15 +63,18 @@ OBR.onReady(async()=>{
   }catch(e){status('Error: '+e.message);$('tokenName').textContent='Cannot load token';}
 });
 $('character').onchange=()=>{updateLinkButton();status($('character').value===linkedId?'No changes to save.':$('character').value?'Press Link to save this character to the token.':'Press Unlink to restore the token caption.');};
-$('link').onclick=async()=>{
+async function saveLink(chosen){
   if(!ready)return;
-  const chosen=$('character').value;
+  ready=false;
   $('link').disabled=true;
+  $('unlink').disabled=true;
   $('character').disabled=true;
   try{
     await OBR.scene.items.updateItems([id],items=>{for(const item of items){if(chosen)item.metadata[KEY]=chosen;else delete item.metadata[KEY];}});
-    linkedId=chosen;displayCharacter(chosen);status(chosen?'Linked! Live HP is displayed above.':'Unlinked. The GM connection restores the token caption.');
+    linkedId=chosen;$('character').value=chosen;displayCharacter(chosen);status(chosen?'Linked! Live HP is displayed above.':'Unlinked. The GM connection restores the token caption.');
   }catch(e){status('Link failed: '+e.message);}
-  finally{$('character').disabled=false;updateLinkButton();}
-};
+  finally{ready=true;$('character').disabled=false;updateLinkButton();}
+}
+$('link').onclick=()=>{const chosen=$('character').value;if(chosen)return saveLink(chosen);};
+$('unlink').onclick=()=>{if(linkedId)return saveLink('');};
 window.addEventListener('pagehide',()=>unsubscribe?.());

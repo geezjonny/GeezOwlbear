@@ -44,6 +44,8 @@ a.button {
 button:disabled {
   opacity:.5;
   cursor:default}
+#unlink {
+  background:#334155}
 #stats {
   padding:13px;
   background:#1e293b;

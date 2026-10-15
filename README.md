@@ -12,7 +12,7 @@ Deploy `manifest.json`, `background.html`, `background.js`, `index.html`, `app.j
 - Preserves its original name, font-size, style, and other formatting.
 - Removes GeezOwlbear's old standalone HP labels automatically.
 - Restores the original caption if a token is unlinked.
-- To unlink, select **No linked character** and press **Unlink this token**. A connected GM client restores the caption.
+- To unlink, press the separate **Unlink this token** button below Link. A connected GM client restores the caption.
 - Caption edits made while linked are retained on subsequent HP updates and unlinking.
 - Existing character links continue working; Firebase structure is unchanged.
 - Non-IMAGE scene objects do not get native captions.
