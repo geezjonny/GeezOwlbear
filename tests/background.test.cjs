@@ -59,3 +59,10 @@ test('v1.5 captions migrate without appending HP twice',async()=>{
   await h.run("setCaption('token','a','10/20',0)");
   assert.equal(h.token.text.plainText,'Thorin · 10/20 HP');
 });
+
+test('captions show temporary HP only when the character has some',()=>{
+  const h=harness();
+  assert.equal(h.run("hpText({hp_current:12,hp_max:20,temp_hp:5})"),'12/20 (+5)');
+  assert.equal(h.run("hpText({hp_current:12,hp_max:20,temp_hp:0})"),'12/20');
+  assert.equal(h.run("hpText({hp_current:12,hp_max:20})"),'12/20');
+});

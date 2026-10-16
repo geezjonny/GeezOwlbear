@@ -78,5 +78,9 @@ details {margin-top:14px}
 summary {cursor:pointer}
 #conditions {display:grid;grid-template-columns:1fr 1fr;gap:6px}
 #conditions label {display:flex;align-items:center;gap:6px;margin:0;color:#e2e8f0}
-#stats[hidden],#open[hidden],#openInOwlbear[hidden] {
+#tempHp {
+  color:#60a5fa;
+  font-weight:700;
+  margin:-2px 0 6px}
+#stats[hidden],#open[hidden],#openInOwlbear[hidden],#tempHp[hidden] {
   display:none}

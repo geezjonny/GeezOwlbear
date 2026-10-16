@@ -50,7 +50,8 @@ function hpText(combat) {
   const current = Number(combat.hp_current);
   const max = Number(combat.hp_max);
   if (!Number.isFinite(current) || !Number.isFinite(max)) return '—';
-  return `${current}/${max}`;
+  const temp = Number(combat.temp_hp);
+  return temp > 0 ? `${current}/${max} (+${temp})` : `${current}/${max}`;
 }
 
 async function clearOldLabels(items) {

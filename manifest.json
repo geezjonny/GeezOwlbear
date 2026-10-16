@@ -1,6 +1,6 @@
 {
   "name": "GeezSheets Live HP",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "manifest_version": 1,
   "description": "Firebase HP in each token\u2019s native Owlbear name label, matching its font and zoom behavior.",
   "background_url": "https://geezjonny.github.io/GeezOwlbear/background.html"

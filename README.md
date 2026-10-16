@@ -1,4 +1,6 @@
-# GeezOwlbear v1.5 — native token HP caption
+# GeezOwlbear v1.6 — native token HP caption
+
+**v1.6:** Damage now uses temporary HP first (healing never adds temp HP), temp HP shows on the token caption (`Thorin · 32/45 (+5) HP`) and in the panel, and save/error messages stay visible instead of being replaced by live HP updates.
 
 **Fix:** Stop drawing separate, screen-sized HP labels. Instead, append HP to the **existing native Owlbear token name caption** (`Thorin · 32/45 HP`). This uses Owlbear's own label font and zoom behavior automatically.
 
@@ -14,7 +16,7 @@ Deploy `manifest.json`, `background.html`, `background.js`, `index.html`, `app.j
 - Restores the original caption if a token is unlinked.
 - To unlink, press the separate **Unlink this token** button below Link. A connected GM client restores the caption.
 - Caption edits made while linked are retained on subsequent HP updates and unlinking.
-- From the token's **GeezSheets HP** menu, enter an HP amount and press **− Damage** or **+ Heal**. HP is clamped between zero and maximum, matching GeezSheets; temporary HP is unchanged. Expand **Conditions** to toggle standard conditions. These controls write to the linked character's Firebase combat data using transactions, so all tokens linked to that character share the changes. Firebase rules must allow reads and writes; errors appear in the panel. Conditions are shown in the panel, without on-map status markers or automatic rules effects.
+- From the token's **GeezSheets HP** menu, enter an HP amount and press **− Damage** or **+ Heal**. HP is clamped between zero and maximum. Damage is taken from temporary HP (`temp_hp`) first; healing does not change temporary HP. Expand **Conditions** to toggle standard conditions. These controls write to the linked character's Firebase combat data using transactions, so all tokens linked to that character share the changes. Firebase rules must allow reads and writes; errors appear in the panel. Conditions are shown in the panel, without on-map status markers or automatic rules effects.
 - Players and GMs can select a linked token, open **GeezSheets HP**, and press **Open sheet in Owlbear** to view its sheet in a 760 × 640 window. **Open in new tab** remains available. The linked character determines which sheet opens; player ownership is not inferred.
 - Existing character links continue working; Firebase structure is unchanged.
 - Non-IMAGE scene objects do not get native captions.

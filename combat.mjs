@@ -4,7 +4,12 @@ export function adjustHp(combat, delta) {
   if (!combat || !Number.isSafeInteger(delta)) return;
   const current = Number(combat.hp_current), max = Number(combat.hp_max);
   if (!Number.isFinite(current) || !Number.isFinite(max) || max < 0) return;
-  return {...combat, hp_current: Math.max(0, Math.min(max, current + delta))};
+  // Temporary HP absorbs damage first; healing never restores it.
+  const temp = Math.max(0, Number(combat.temp_hp) || 0);
+  const absorbed = delta < 0 ? Math.min(temp, -delta) : 0;
+  const next = {...combat, hp_current: Math.max(0, Math.min(max, current + delta + absorbed))};
+  if (absorbed) next.temp_hp = temp - absorbed;
+  return next;
 }
 
 export function setCondition(combat, condition, enabled) {

@@ -16,7 +16,7 @@ const KEY = 'io.github.geezjonny.geezowlbear/characterId';
 const id = new URLSearchParams(location.search).get('token');
 const $ = name=>document.getElementById(name);
 let characters = new Map(),linkedId='',unsubscribe=null,ready=false;
-let combatReady=false, savingCombat=false;
+let combatReady=false, savingCombat=false, lastCombat=null;
 function updateCombatControls(){
   for(const control of $('combatControls').querySelectorAll('button,input'))control.disabled=!combatReady||savingCombat;
 }
@@ -36,7 +36,7 @@ async function saveCombat(transform){
     const result=await runTransaction(ref(db,`characters/pcs/${characterId}/combat`),transform,{applyLocally:false});
     if(!result.committed)throw Error('Combat data is missing or invalid.');
     status('Saved to GeezSheets.');
-  }catch(e){displayCharacter(linkedId);status('Save failed: '+e.message);}
+  }catch(e){renderCombat(lastCombat);status('Save failed: '+e.message);}
   finally{savingCombat=false;updateCombatControls();$('character').disabled=false;updateLinkButton();}
 }
 function changeHp(sign){
@@ -52,8 +52,23 @@ function updateLinkButton(){
   $('link').disabled=!ready||!chosen||chosen===linkedId;
   $('unlink').disabled=!ready||!linkedId;
 }
+// Live updates only redraw values; status messages stay until the next action.
+function renderCombat(combat){
+  lastCombat=combat;
+  combatReady=!!combat;updateCombatControls();
+  const conditions=Array.isArray(combat?.conditions)?combat.conditions:[];
+  for(const input of $('conditions').querySelectorAll('input'))input.checked=conditions.some(value=>typeof value==='string'&&value.toLowerCase()===input.value.toLowerCase());
+  $('activeConditions').textContent=conditions.length?'Active: '+conditions.join(', '):'No active conditions';
+  if(!combat){$('hp').textContent='No combat data';$('tempHp').hidden=true;$('bar').style.width='0%';return;}
+  const current=Number(combat.hp_current??0),max=Number(combat.hp_max??0),temp=Number(combat.temp_hp)||0;
+  $('hp').textContent=`${current} / ${max} HP`;
+  $('tempHp').textContent=`+${temp} temporary HP`;$('tempHp').hidden=!(temp>0);
+  const pct=max>0?Math.max(0,Math.min(100,current/max*100)):0;
+  $('bar').style.width=pct+'%';
+  $('bar').style.background=pct<=25?'#ef4444':pct<=50?'#eab308':'#22c55e';
+}
 function displayCharacter(charId){
-  combatReady=false;updateCombatControls();
+  combatReady=false;lastCombat=null;updateCombatControls();
   if(unsubscribe){unsubscribe();unsubscribe=null;}
   const c=characters.get(charId);
   $('stats').hidden=!charId;
@@ -62,21 +77,9 @@ function displayCharacter(charId){
   if(!charId)return;
   $('characterName').textContent=c?.name||charId;
   const u=new URL('https://geezjonny.github.io/GeezSheets/sheet.html');u.searchParams.set('char',charId);$('open').href=u.href;
-  $('hp').textContent='Loading HP…';$('bar').style.width='0%';
+  $('hp').textContent='Loading HP…';$('tempHp').hidden=true;$('bar').style.width='0%';
   unsubscribe=onValue(ref(db,`characters/pcs/${charId}/combat`),snap=>{
-    if(charId!==linkedId)return;
-    const combat=snap.val();
-    combatReady=!!combat;updateCombatControls();
-    const conditions=Array.isArray(combat?.conditions)?combat.conditions:[];
-    for(const input of $('conditions').querySelectorAll('input'))input.checked=conditions.some(value=>typeof value==='string'&&value.toLowerCase()===input.value.toLowerCase());
-    $('activeConditions').textContent=conditions.length?'Active: '+conditions.join(', '):'No active conditions';
-    if(!combat){$('hp').textContent='No combat data';$('bar').style.width='0%';return;}
-    const current=Number(combat.hp_current??0),max=Number(combat.hp_max??0);
-    $('hp').textContent=`${current} / ${max} HP`;
-    const pct=max>0?Math.max(0,Math.min(100,current/max*100)):0;
-    $('bar').style.width=pct+'%';
-    $('bar').style.background=pct<=25?'#ef4444':pct<=50?'#eab308':'#22c55e';
-    status('Live HP connected to GeezSheets.');
+    if(charId===linkedId)renderCombat(snap.val());
   },err=>{combatReady=false;updateCombatControls();status('Firebase HP read failed: '+err.message);});
 }
 OBR.onReady(async()=>{
